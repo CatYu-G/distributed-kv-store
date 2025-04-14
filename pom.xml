@@ -1,0 +1,23 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.github.raftimpl.raft</groupId>
+    <artifactId>distribute-system-parent</artifactId>
+    <version>1.9.0</version>
+    <packaging>pom</packaging>
+
+    <name>distribute-system-parent</name>
+    <url>http://maven.apache.org</url>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <modules>
+        <module>distribute-system-core</module>
+        <module>distribute-system-cluster</module>
+        <module>distribute-system-manager</module>
+    </modules>
+
+</project>
