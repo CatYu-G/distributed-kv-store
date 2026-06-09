@@ -1,116 +1,268 @@
-raft-java
-A Raft implementation library for Java.
-Supported Features
-Leader election
-Log replication
-Snapshot
-Dynamic cluster membership changes
-Quick Start
-To deploy a 3-node Raft cluster locally, run the following script:
-cd raft-java-example && sh deploy.sh
-This script will deploy three instances — example1, example2, and example3 — under the raft-java-example/env directory.
-It will also create a client directory for testing read and write operations on the Raft cluster.
-Once deployed successfully, you can test a write operation with:
+# raft-java
+
+A lightweight and extensible Raft consensus implementation in Java, designed for distributed systems research and production-grade applications.
+
+---
+
+## Features
+
+* Leader Election
+* Log Replication
+* Snapshotting
+* Dynamic Cluster Membership Changes
+
+---
+
+## Quick Start
+
+Deploy a 3-node Raft cluster locally:
+
+```bash
+cd raft-java-example
+sh deploy.sh
+```
+
+This script will:
+
+* Deploy three Raft nodes: `example1`, `example2`, and `example3`
+* Create an `env/client` directory for testing client requests
+* Initialize the cluster configuration
+
+### Test a Write Operation
+
+```bash
 cd env/client
-./bin/run_client.sh "list://127.0.0.1:8051,127.0.0.1:8052,127.0.0.1:8053" hello world
-To test a read operation, run:
-./bin/run_client.sh "list://127.0.0.1:8051,127.0.0.1:8052,127.0.0.1:8053" hello
-Usage
-This section explains how to use the raft-java dependency to build your own distributed storage system.
-Add Dependency
-(Not yet published to Maven Central — please install manually to your local repository.)
+
+./bin/run_client.sh \
+"list://127.0.0.1:8051,127.0.0.1:8052,127.0.0.1:8053" \
+hello world
+```
+
+### Test a Read Operation
+
+```bash
+./bin/run_client.sh \
+"list://127.0.0.1:8051,127.0.0.1:8052,127.0.0.1:8053" \
+hello
+```
+
+---
+
+## Usage
+
+This section demonstrates how to use `raft-java` to build your own distributed storage system.
+
+### Add Dependency
+
+> Not yet published to Maven Central. Please install manually into your local repository.
+
+```xml
 <dependency>
     <groupId>com.github.raftimpl.raft</groupId>
     <artifactId>raft-java-core</artifactId>
     <version>1.9.0</version>
 </dependency>
-Define Data Write/Read Interfaces
+```
+
+---
+
+## Define Read / Write Interfaces
+
+```proto
 message SetRequest {
     string key = 1;
     string value = 2;
 }
+
 message SetResponse {
     bool success = 1;
 }
+
 message GetRequest {
     string key = 1;
 }
+
 message GetResponse {
     string value = 1;
 }
+```
+
+```java
 public interface ExampleService {
-    Example.SetResponse set(Example.SetRequest request);
-    Example.GetResponse get(Example.GetRequest request);
+
+    Example.SetResponse set(
+        Example.SetRequest request
+    );
+
+    Example.GetResponse get(
+        Example.GetRequest request
+    );
 }
-Server-Side Implementation
-1. Implement the StateMachine Interface
-// This interface is mainly invoked internally by Raft.
+```
+
+---
+
+## Server-Side Implementation
+
+### 1. Implement the State Machine
+
+```java
 public interface StateMachine {
+
     /**
      * Create a snapshot of the current state machine data.
-     * Called periodically by each node.
-     * @param snapshotDir output directory for snapshot data
      */
     void writeSnapshot(String snapshotDir);
 
     /**
-     * Load snapshot data into the state machine.
-     * Called when the node starts.
-     * @param snapshotDir snapshot directory
+     * Load snapshot data when the node starts.
      */
     void readSnapshot(String snapshotDir);
 
     /**
-     * Apply committed data to the state machine.
-     * @param dataBytes serialized data
+     * Apply committed log entries.
      */
     void apply(byte[] dataBytes);
 }
-2. Implement Data Write and Read Logic
-// ExampleService implementation should include:
-private RaftNode raftNode;
-private ExampleStateMachine stateMachine;
-Write logic:
-byte[] data = request.toByteArray();
-// Replicate data synchronously across the Raft cluster
-boolean success = raftNode.replicate(data, Raft.EntryType.ENTRY_TYPE_DATA);
-Example.SetResponse response = Example.SetResponse.newBuilder()
-    .setSuccess(success)
-    .build();
-Read logic (defined by the state machine):
-Example.GetResponse response = stateMachine.get(request);
-3. Server Startup Example
-// Initialize RPC server
-RPCServer server = new RPCServer(localServer.getEndPoint().getPort());
+```
 
-// Initialize application state machine
-ExampleStateMachine stateMachine = new ExampleStateMachine();
+---
+
+### 2. Implement Read / Write Logic
+
+#### Write Path
+
+```java
+byte[] data = request.toByteArray();
+
+boolean success =
+    raftNode.replicate(
+        data,
+        Raft.EntryType.ENTRY_TYPE_DATA
+    );
+
+Example.SetResponse response =
+    Example.SetResponse.newBuilder()
+        .setSuccess(success)
+        .build();
+```
+
+#### Read Path
+
+```java
+Example.GetResponse response =
+    stateMachine.get(request);
+```
+
+---
+
+### 3. Start the Server
+
+```java
+// Initialize RPC server
+RPCServer server =
+    new RPCServer(
+        localServer.getEndPoint().getPort()
+    );
+
+// Initialize state machine
+ExampleStateMachine stateMachine =
+    new ExampleStateMachine();
 
 // Configure Raft options
-RaftOptions.snapshotMinLogSize = 10 * 1024;
-RaftOptions.snapshotPeriodSeconds = 30;
-RaftOptions.maxSegmentFileSize = 1024 * 1024;
+RaftOptions.snapshotMinLogSize =
+    10 * 1024;
+
+RaftOptions.snapshotPeriodSeconds =
+    30;
+
+RaftOptions.maxSegmentFileSize =
+    1024 * 1024;
 
 // Initialize Raft node
-RaftNode raftNode = new RaftNode(serverList, localServer, stateMachine);
+RaftNode raftNode =
+    new RaftNode(
+        serverList,
+        localServer,
+        stateMachine
+    );
 
-// Register Raft internal services
-RaftConsensusService raftConsensusService = new RaftConsensusServiceImpl(raftNode);
-server.registerService(raftConsensusService);
+// Register internal services
+server.registerService(
+    new RaftConsensusServiceImpl(
+        raftNode
+    )
+);
 
-// Register client-facing Raft services
-RaftClientService raftClientService = new RaftClientServiceImpl(raftNode);
-server.registerService(raftClientService);
+// Register client services
+server.registerService(
+    new RaftClientServiceImpl(
+        raftNode
+    )
+);
 
-// Register your application service
-ExampleService exampleService = new ExampleServiceImpl(raftNode, stateMachine);
-server.registerService(exampleService);
+// Register application service
+server.registerService(
+    new ExampleServiceImpl(
+        raftNode,
+        stateMachine
+    )
+);
 
-// Start RPC server and initialize Raft node
+// Start cluster
 server.start();
 raftNode.init();
-About
-A lightweight and extensible Raft consensus implementation in Java, designed for distributed systems research and production-grade applications.
-Languages
-Java 96.1%
-Shell 3.9%
+```
+
+---
+
+## Architecture
+
+```text
+                +----------------+
+                |     Client     |
+                +--------+-------+
+                         |
+                         v
+                +----------------+
+                |  Leader Node   |
+                +--------+-------+
+                         |
+       +-----------------+-----------------+
+       |                                   |
+       v                                   v
++--------------+                   +--------------+
+| Follower #1  |                   | Follower #2  |
++--------------+                   +--------------+
+
+      Raft Consensus Layer
+   (Election / Replication /
+     Snapshot / Membership)
+```
+
+---
+
+## Project Highlights
+
+* Production-oriented Raft implementation in Java
+* Persistent WAL-based log storage
+* Snapshot support for log compaction
+* Dynamic membership changes
+* Extensible state machine abstraction
+* RPC-based cluster communication
+* Suitable for distributed KV stores and storage systems
+
+---
+
+## Tech Stack
+
+* Java
+* Protobuf
+* RPC
+* Raft Consensus
+* WAL
+* Snapshotting
+* Maven
+* Shell
+
+
